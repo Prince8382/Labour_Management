@@ -15,14 +15,21 @@ const money = (amount) =>
   }).format(amount || 0);
 
 
-const API_URL = import.meta.env.VITE_API_URL || "";
+const API_URL = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
 
 async function request(path, options) {
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    credentials: "include",
-    headers: { "Content-Type": "application/json", ...options?.headers },
-  });
+  let response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      credentials: "include",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+    });
+  } catch {
+    throw new Error(
+      `API se connection nahi ho pa raha (${API_URL || window.location.origin}${path}). API server, CORS settings, aur deployment URL check karein.`,
+    );
+  }
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     const error = new Error(data.message || `${options?.method || "GET"} ${path} failed (${response.status})`);

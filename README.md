@@ -24,9 +24,10 @@ Amit Yadav Labour Manager is a MERN app for managing a labour workforce, daily a
 
 ## Deploy to Vercel
 
-1. Import the GitHub repository into Vercel and keep the project root as the repository root.
-2. Set `MONGODB_URI` and `SESSION_SECRET` in **Project Settings → Environment Variables** for the environments you deploy. Use the MongoDB Atlas **Drivers** connection string and allow Vercel's outbound database access in Atlas Network Access.
-3. Vercel builds the Vite frontend from `npm run build`; API requests are served by the function in `api/[...path].js`. Do not add a catch-all rewrite to `/index.html`, because it can send `/api/auth/*` requests to the frontend instead of the API.
-4. Redeploy after changing environment variables. The deployment log's `install-scripts` message is an npm warning; check the later build output for the actual result.
+1. Deploy the Express backend to Render and the frontend to Vercel.
+2. In Vercel, set `VITE_API_URL` to the Render API base URL (for example, `https://your-render-api.onrender.com`).
+3. In Render, set `MONGODB_URI`, a stable random `SESSION_SECRET`, and `CLIENT_ORIGINS` to the exact Vercel origin (scheme and hostname only, no path or trailing slash). Include additional preview or custom domains as comma-separated origins.
+4. Redeploy both projects after changing code or environment variables. In Vercel, ensure the deployment is publicly accessible or that deployment protection permits the people testing it.
+5. Open `https://your-render-api.onrender.com/api/health`. It reports database connectivity and whether `SESSION_SECRET` and `CLIENT_ORIGINS` are configured. HTTP 503 means the deployment is not ready; fix the reported settings and redeploy. The deployment log's `install-scripts` message is an npm warning; check the later build output for the actual result.
 
-The API requires a valid `MONGODB_URI`; locally the server stays available and retries the database connection if MongoDB is temporarily unreachable. While offline, `/api/health` reports a degraded status and API requests return a database-unavailable message. Login sessions are signed, stateless cookies so they work across serverless function instances.
+The API requires a valid `MONGODB_URI`; locally the server stays available and retries the database connection if MongoDB is temporarily unreachable. While offline, `/api/health` reports a degraded status and API requests return a database-unavailable message. The API allows credentialed requests only from origins listed in `CLIENT_ORIGINS` and answers browser preflight requests explicitly; HTTPS session cookies use `SameSite=None; Secure` when a Vercel frontend calls a Render API. Signup and login return an actionable HTTP 503 if the production `SESSION_SECRET` is missing, instead of creating an account that cannot receive a session.

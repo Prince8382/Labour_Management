@@ -1,0 +1,38 @@
+- generic [active] [ref=f3e1]:
+  - banner [ref=f3e2]:
+    - generic [ref=f3e3]: FarmEasy
+    - generic [ref=f3e4]: Loading...
+  - main [ref=f3e5]:
+    - generic [ref=f3e7]:
+      - generic [ref=f3e8]:
+        - generic [ref=f3e9]:
+          - generic [ref=f3e10]: ⏱️
+          - heading "Attendance Tracking" [level=3] [ref=f3e11]
+          - paragraph [ref=f3e12]: Attendance tracking made simple and fast — record daily worker attendance in just one tap.
+          - link "Learn More" [ref=f3e13] [cursor=pointer]:
+            - /url: /attendance
+        - generic [ref=f3e14]:
+          - generic [ref=f3e15]: 💵
+          - heading "Salary Calculation" [level=3] [ref=f3e16]
+          - paragraph [ref=f3e17]: Automatically calculate daily wages, balances, advances, and total payments with accuracy.
+          - link "Learn More" [ref=f3e18] [cursor=pointer]:
+            - /url: /payouts
+        - generic [ref=f3e19]:
+          - generic [ref=f3e20]: 🤝
+          - heading "Loan Management" [level=3] [ref=f3e21]
+          - paragraph [ref=f3e22]: Easily manage worker loans, track borrowings, and monitor outstanding dues in one place.
+          - link "Learn More" [ref=f3e23] [cursor=pointer]:
+            - /url: /loans
+      - heading "Streamline Your Labor Management" [level=1] [ref=f3e24]
+      - paragraph [ref=f3e25]: Centralized platform for managing attendance, salary, and loans efficiently.
+      - generic [ref=f3e26]:
+        - generic [ref=f3e27]:
+          - heading "Testimony" [level=4] [ref=f3e28]
+          - list [ref=f3e29]:
+            - listitem [ref=f3e30]: 👤 Farmers
+        - generic [ref=f3e31]:
+          - heading "Key Features" [level=4] [ref=f3e32]
+          - list [ref=f3e33]:
+            - listitem [ref=f3e34]: ⚙️ Attendance Tracking
+            - listitem [ref=f3e35]: ⚙️ Loan Management
+      - button "Get Started" [ref=f3e36]

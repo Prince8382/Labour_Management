@@ -11,6 +11,15 @@ function getSessionSecret() {
   return "local-development-only-session-secret";
 }
 
+export function validateSessionConfiguration() {
+  if (!process.env.SESSION_SECRET && process.env.NODE_ENV === "production") {
+    const error = new Error("SESSION_SECRET is missing. Set it in the Render environment and redeploy.");
+    error.status = 503;
+    error.code = "SESSION_SECRET_MISSING";
+    throw error;
+  }
+}
+
 function sign(payload) {
   return createHmac("sha256", getSessionSecret()).update(payload).digest("base64url");
 }
@@ -55,18 +64,29 @@ function readSession(token) {
   }
 }
 
-export function setSessionCookie(res, token) {
-  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+function cookieOptions(req) {
+  const isSecure =
+    process.env.NODE_ENV === "production" ||
+    req?.headers["x-forwarded-proto"]?.split(",")[0] === "https";
+  return {
+    secure: isSecure ? "; Secure" : "",
+    sameSite: isSecure ? "None" : "Lax",
+  };
+}
+
+export function setSessionCookie(res, token, req) {
+  const { secure, sameSite } = cookieOptions(req);
   res.setHeader(
     "Set-Cookie",
-    `${cookieName}=${token}; HttpOnly; SameSite=Lax; Path=/api; Max-Age=${sessionDurationMs / 1000}${secure}`,
+    `${cookieName}=${token}; HttpOnly; SameSite=${sameSite}; Path=/api; Max-Age=${sessionDurationMs / 1000}${secure}`,
   );
 }
 
-export function clearSessionCookie(res) {
+export function clearSessionCookie(res, req) {
+  const { secure, sameSite } = cookieOptions(req);
   res.setHeader(
     "Set-Cookie",
-    `${cookieName}=; HttpOnly; SameSite=Lax; Path=/api; Max-Age=0${process.env.NODE_ENV === "production" ? "; Secure" : ""}`,
+    `${cookieName}=; HttpOnly; SameSite=${sameSite}; Path=/api; Max-Age=0${secure}`,
   );
 }
 
@@ -78,9 +98,4 @@ export function requireSession(req, res, next) {
   }
   req.userId = session.userId;
   next();
-}
-
-export function removeSession(req) {
-  const token = readSessionToken(req);
-  if (token) sessions.delete(token);
 }

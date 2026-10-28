@@ -5,9 +5,9 @@ import User from "../models/User.js";
 import {
   clearSessionCookie,
   createSession,
-  removeSession,
   requireSession,
   setSessionCookie,
+  validateSessionConfiguration,
 } from "../middleware/sessionAuth.js";
 
 const router = Router();
@@ -27,6 +27,7 @@ function validPassword(password) {
 
 router.post("/signup", async (req, res, next) => {
   try {
+    validateSessionConfiguration();
     const { username, password } = req.body || {};
     if (!validUsername(username) || !validPassword(password)) {
       return res.status(400).json({
@@ -37,7 +38,7 @@ router.post("/signup", async (req, res, next) => {
     const passwordSalt = randomBytes(16).toString("hex");
     const passwordHash = await hashPassword(password, passwordSalt);
     const user = await User.create({ username: username.trim(), passwordHash, passwordSalt });
-    setSessionCookie(res, createSession(user._id));
+    setSessionCookie(res, createSession(user._id), req);
     res.status(201).json({ username: user.username });
   } catch (error) {
     if (error.code === 11000) {
@@ -49,6 +50,7 @@ router.post("/signup", async (req, res, next) => {
 
 router.post("/login", async (req, res, next) => {
   try {
+    validateSessionConfiguration();
     const { username, password } = req.body || {};
     if (typeof username !== "string" || typeof password !== "string" || password.length > 128) {
       return res.status(400).json({ message: "Enter your username and password." });
@@ -64,7 +66,7 @@ router.post("/login", async (req, res, next) => {
       return res.status(401).json({ message: "Username or password is incorrect." });
     }
 
-    setSessionCookie(res, createSession(user._id));
+    setSessionCookie(res, createSession(user._id), req);
     res.json({ username: user.username });
   } catch (error) {
     next(error);
@@ -82,8 +84,7 @@ router.get("/me", requireSession, async (req, res, next) => {
 });
 
 router.post("/logout", requireSession, (req, res) => {
-  removeSession(req);
-  clearSessionCookie(res);
+  clearSessionCookie(res, req);
   res.json({ message: "Logged out." });
 });
 
