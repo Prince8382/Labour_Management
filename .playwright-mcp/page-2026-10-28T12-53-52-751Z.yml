@@ -1,0 +1,12 @@
+- main [ref=f4e3]:
+  - generic [ref=f4e4]:
+    - generic [ref=f4e5]:
+      - generic [aria-hidden] [ref=f4e6]: AY
+      - generic [ref=f4e7]:
+        - strong [ref=f4e8]: Amit Yadav
+        - generic [ref=f4e9]: LABOUR MANAGER
+    - paragraph [ref=f4e10]: WELCOME BACK
+    - heading "Login" [level=1] [ref=f4e11]
+    - paragraph [ref=f4e12]: Log in or sign up to manage labour attendance and salary records.
+    - generic [ref=f4e13]: Loading…
+    - paragraph [ref=f4e14]: Labour attendance is maintained by the manager.

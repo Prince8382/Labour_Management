@@ -1,0 +1,24 @@
+- main [ref=f4e3]:
+  - generic [ref=f4e4]:
+    - generic [ref=f4e5]:
+      - generic [aria-hidden] [ref=f4e6]: AY
+      - generic [ref=f4e7]:
+        - strong [ref=f4e8]: Amit Yadav
+        - generic [ref=f4e9]: LABOUR MANAGER
+    - paragraph [ref=f4e10]: NEW ACCOUNT
+    - heading "Create your account" [level=1] [ref=f4e23]
+    - paragraph [ref=f4e12]: Log in or sign up to manage labour attendance and salary records.
+    - generic [ref=f4e15]:
+      - generic [ref=f4e24]:
+        - text: Name / username
+        - textbox "Name / username" [ref=f4e25]: e2e_qa_20261028_1810
+      - generic [ref=f4e18]:
+        - text: Password
+        - textbox "Password" [ref=f4e19]: TestOnlyPass-20261028!
+      - generic [ref=f4e26]:
+        - text: Confirm password
+        - textbox "Confirm password" [ref=f4e27]: TestOnlyPass-20261028!
+      - alert [ref=f4e30]: API se connection nahi ho pa raha (https://labour-management-1.onrender.com/api/auth/signup). API server, CORS settings, aur deployment URL check karein.
+      - button "Sign up" [active] [ref=f4e28] [cursor=pointer]
+    - button "Already have an account? Login" [ref=f4e29] [cursor=pointer]
+    - paragraph [ref=f4e14]: Labour attendance is maintained by the manager.

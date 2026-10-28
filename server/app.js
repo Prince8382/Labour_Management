@@ -10,6 +10,7 @@ import { requireSession } from "./middleware/sessionAuth.js";
 const app = express();
 const allowedOrigins = new Set([
   "http://localhost:5173",
+  "https://labour-management-lemon.vercel.app",
   ...(process.env.CLIENT_ORIGINS || "")
     .split(",")
     .map((origin) => origin.trim())
@@ -38,7 +39,7 @@ app.get("/api/health", (_req, res) => {
     process.env.NODE_ENV !== "production" || Boolean(process.env.SESSION_SECRET);
   const corsConfigured =
     process.env.NODE_ENV !== "production" ||
-    Boolean(process.env.CLIENT_ORIGINS?.split(",").some((origin) => origin.trim()));
+    allowedOrigins.has("https://labour-management-lemon.vercel.app");
   const ready = databaseConnected && sessionConfigured && corsConfigured;
   res.status(ready ? 200 : 503).json({
     status: ready ? "ok" : "degraded",
