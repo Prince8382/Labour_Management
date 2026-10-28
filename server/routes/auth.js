@@ -1,65 +1,47 @@
 import { promisify } from "node:util";
 import { randomBytes, scrypt as scryptCallback, timingSafeEqual } from "node:crypto";
 import { Router } from "express";
-import Admin from "../models/Admin.js";
+import User from "../models/User.js";
 import {
-  clearAdminSessionCookie,
-  createAdminSession,
-  requireAdmin,
-  revokeAdminSession,
-  setAdminSessionCookie,
-} from "../middleware/adminAuth.js";
+  clearSessionCookie,
+  createSession,
+  removeSession,
+  requireSession,
+  setSessionCookie,
+} from "../middleware/sessionAuth.js";
 
 const router = Router();
-const loginAttempts = new Map();
-const maxAttempts = 5;
-const lockDurationMs = 15 * 60 * 1000;
 const scrypt = promisify(scryptCallback);
 
 async function hashPassword(password, salt) {
   return (await scrypt(password, salt, 64)).toString("hex");
 }
 
-router.get("/status", async (_req, res, next) => {
-  try {
-    res.json({ setupRequired: !(await Admin.exists({ _id: "primary" })) });
-  } catch (error) {
-    next(error);
-  }
-});
+function validUsername(username) {
+  return typeof username === "string" && /^[A-Za-z0-9._-]{3,30}$/.test(username.trim());
+}
 
-router.post("/setup", async (req, res, next) => {
+function validPassword(password) {
+  return typeof password === "string" && password.length >= 8 && password.length <= 128;
+}
+
+router.post("/signup", async (req, res, next) => {
   try {
     const { username, password } = req.body || {};
-    if (
-      typeof username !== "string" ||
-      !/^[A-Za-z0-9._-]{3,40}$/.test(username.trim()) ||
-      typeof password !== "string" ||
-      password.length < 12 ||
-      password.length > 128
-    ) {
+    if (!validUsername(username) || !validPassword(password)) {
       return res.status(400).json({
-        message:
-          "Use a 3–40 character username (letters, numbers, dot, underscore or hyphen) and a 12–128 character password.",
+        message: "Username must be 3–30 characters; password must be 8–128 characters.",
       });
     }
 
     const passwordSalt = randomBytes(16).toString("hex");
     const passwordHash = await hashPassword(password, passwordSalt);
-    const admin = await Admin.create({
-      _id: "primary",
-      username: username.trim(),
-      passwordHash,
-      passwordSalt,
-    });
-
-    loginAttempts.delete(req.ip);
-    const token = createAdminSession();
-    setAdminSessionCookie(res, token);
-    res.status(201).json({ username: admin.username });
+    const user = await User.create({ username: username.trim(), passwordHash, passwordSalt });
+    setSessionCookie(res, createSession(user._id));
+    res.status(201).json({ username: user.username });
   } catch (error) {
     if (error.code === 11000) {
-      return res.status(409).json({ message: "Admin setup is already complete. Please sign in." });
+      return res.status(409).json({ message: "That username is already taken." });
     }
     next(error);
   }
@@ -67,58 +49,41 @@ router.post("/setup", async (req, res, next) => {
 
 router.post("/login", async (req, res, next) => {
   try {
-    const clientIp = req.ip;
-    const now = Date.now();
-    const attempt = loginAttempts.get(clientIp);
-
-    if (attempt?.lockedUntil > now) {
-      return res.status(429).json({ message: "Too many login attempts. Try again in 15 minutes." });
-    }
-    const isExpiredLock = attempt?.lockedUntil && attempt.lockedUntil <= now;
-    if (isExpiredLock) loginAttempts.delete(clientIp);
-    const previousFailedAttempts = isExpiredLock ? 0 : attempt?.failedAttempts || 0;
-
     const { username, password } = req.body || {};
-    const admin = await Admin.findById("primary");
-    let validPassword = false;
-    if (admin && typeof password === "string" && password.length <= 128) {
-      const candidateHash = Buffer.from(await hashPassword(password, admin.passwordSalt), "hex");
-      const expectedHash = Buffer.from(admin.passwordHash, "hex");
-      validPassword =
-        candidateHash.length === expectedHash.length &&
-        timingSafeEqual(candidateHash, expectedHash);
+    if (typeof username !== "string" || typeof password !== "string" || password.length > 128) {
+      return res.status(400).json({ message: "Enter your username and password." });
     }
-    if (typeof username !== "string" || !admin || username.trim() !== admin.username || !validPassword) {
-      const failedAttempts = previousFailedAttempts + 1;
-      loginAttempts.set(clientIp, {
-        failedAttempts,
-        lockedUntil: failedAttempts >= maxAttempts ? now + lockDurationMs : 0,
-      });
+    const user = await User.findOne({ username: username.trim() });
+    let passwordMatches = false;
+    if (user) {
+      const actual = Buffer.from(await hashPassword(password, user.passwordSalt), "hex");
+      const expected = Buffer.from(user.passwordHash, "hex");
+      passwordMatches = actual.length === expected.length && timingSafeEqual(actual, expected);
+    }
+    if (!user || !passwordMatches) {
       return res.status(401).json({ message: "Username or password is incorrect." });
     }
 
-    loginAttempts.delete(clientIp);
-    const token = createAdminSession();
-    setAdminSessionCookie(res, token);
-    res.json({ username: admin.username });
+    setSessionCookie(res, createSession(user._id));
+    res.json({ username: user.username });
   } catch (error) {
     next(error);
   }
 });
 
-router.get("/me", requireAdmin, async (_req, res, next) => {
+router.get("/me", requireSession, async (req, res, next) => {
   try {
-    const admin = await Admin.findById("primary").select("username").lean();
-    if (!admin) return res.status(401).json({ message: "Admin account is not configured." });
-    res.json({ username: admin.username });
+    const user = await User.findById(req.userId).select("username").lean();
+    if (!user) return res.status(401).json({ message: "Please log in to continue." });
+    res.json({ username: user.username });
   } catch (error) {
     next(error);
   }
 });
 
-router.post("/logout", requireAdmin, (req, res) => {
-  revokeAdminSession(req);
-  clearAdminSessionCookie(res);
+router.post("/logout", requireSession, (req, res) => {
+  removeSession(req);
+  clearSessionCookie(res);
   res.json({ message: "Logged out." });
 });
 

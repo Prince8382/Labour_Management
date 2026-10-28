@@ -18,6 +18,64 @@ router.get("/", async (req, res, next) => {
   }
 });
 
+router.get("/summary", async (req, res, next) => {
+  try {
+    const { month } = req.query;
+    if (!month || !/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
+      return res.status(400).json({ message: "A valid month (YYYY-MM) is required." });
+    }
+
+    const [labours, records] = await Promise.all([
+      Labour.find().sort({ fullName: 1 }).lean(),
+      Attendance.find({ date: new RegExp(`^${month}-`) }).lean(),
+    ]);
+    const summaries = new Map();
+    for (const record of records) {
+      const key = String(record.labour);
+      const summary = summaries.get(key) || {
+        presentDays: 0,
+        halfDays: 0,
+        absentDays: 0,
+        leaveDays: 0,
+        overtimeHours: 0,
+      };
+      if (record.status === "present") summary.presentDays += 1;
+      if (record.status === "half-day") summary.halfDays += 1;
+      if (record.status === "absent") summary.absentDays += 1;
+      if (record.status === "leave") summary.leaveDays += 1;
+      summary.overtimeHours += record.overtimeHours || 0;
+      summaries.set(key, summary);
+    }
+
+    res.json(
+      labours.map((labour) => {
+        const summary = summaries.get(String(labour._id)) || {
+          presentDays: 0,
+          halfDays: 0,
+          absentDays: 0,
+          leaveDays: 0,
+          overtimeHours: 0,
+        };
+        return {
+          _id: labour._id,
+          fullName: labour.fullName,
+          role: labour.role,
+          status: labour.status,
+          ...summary,
+          attendanceDays: summary.presentDays + summary.halfDays * 0.5,
+          recordedDays:
+            summary.presentDays +
+            summary.halfDays +
+            summary.absentDays +
+            summary.leaveDays,
+        };
+      }),
+    );
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.put("/bulk", async (req, res, next) => {
   try {
     const { date, entries } = req.body;

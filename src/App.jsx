@@ -17,7 +17,6 @@ const money = (amount) =>
 async function request(path, options) {
   const response = await fetch(path, {
     ...options,
-    credentials: "same-origin",
     headers: { "Content-Type": "application/json", ...options?.headers },
   });
   const data = await response.json().catch(() => ({}));
@@ -47,14 +46,17 @@ function App() {
   const [page, setPage] = useState("overview");
   const [labours, setLabours] = useState([]);
   const [attendance, setAttendance] = useState([]);
+  const [attendanceRevision, setAttendanceRevision] = useState(0);
+  const [attendanceSummary, setAttendanceSummary] = useState([]);
   const [salaries, setSalaries] = useState([]);
   const [attendanceDate, setAttendanceDate] = useState(todayString);
+  const [attendanceMonth, setAttendanceMonth] = useState(monthString);
   const [salaryMonth, setSalaryMonth] = useState(monthString);
   const [loading, setLoading] = useState(true);
   const [authStatus, setAuthStatus] = useState("checking");
   const [authMode, setAuthMode] = useState("login");
-  const [adminUsername, setAdminUsername] = useState("Admin");
-  const [loginError, setLoginError] = useState("");
+  const [username, setUsername] = useState("");
+  const [authError, setAuthError] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [modal, setModal] = useState("");
@@ -64,46 +66,33 @@ function App() {
     setLoading(true);
     setError("");
     try {
-      const [labourData, attendanceData, salaryData] = await Promise.all([
+      const [labourData, attendanceData, attendanceSummaryData, salaryData] = await Promise.all([
         request("/api/labours"),
         request(`/api/attendance?date=${attendanceDate}`),
+        request(`/api/attendance/summary?month=${attendanceMonth}`),
         request(`/api/salaries?month=${salaryMonth}`),
       ]);
       setLabours(labourData);
       setAttendance(attendanceData);
+      setAttendanceRevision((revision) => revision + 1);
+      setAttendanceSummary(attendanceSummaryData);
       setSalaries(salaryData);
     } catch (loadError) {
-      if (loadError.status === 401) {
-        setAuthStatus("unauthenticated");
-        return;
-      }
       setError(loadError.message);
     } finally {
       setLoading(false);
     }
-  }, [attendanceDate, salaryMonth]);
+  }, [attendanceDate, attendanceMonth, salaryMonth]);
 
   useEffect(() => {
     request("/api/auth/me")
-      .then((admin) => {
-        setAdminUsername(admin.username);
+      .then((user) => {
+        setUsername(user.username);
         setAuthStatus("authenticated");
       })
-      .catch((authError) => {
-        if (authError.status !== 401) {
-          setLoginError(authError.message);
-          setAuthStatus("unauthenticated");
-          return;
-        }
-        request("/api/auth/status")
-          .then((status) => {
-            setAuthMode(status.setupRequired ? "setup" : "login");
-            setAuthStatus("unauthenticated");
-          })
-          .catch((statusError) => {
-            setLoginError(statusError.message);
-            setAuthStatus("unauthenticated");
-          });
+      .catch((authRequestError) => {
+        if (authRequestError.status !== 401) setAuthError(authRequestError.message);
+        setAuthStatus("unauthenticated");
       });
   }, []);
 
@@ -111,37 +100,37 @@ function App() {
     if (authStatus === "authenticated") loadData();
   }, [authStatus, loadData]);
 
-  async function submitLogin(event) {
+  async function submitAuth(event) {
     event.preventDefault();
-    setLoginError("");
-    const formData = new FormData(event.currentTarget);
-    const username = formData.get("username");
-    const password = formData.get("password");
-    if (authMode === "setup" && password !== formData.get("confirmPassword")) {
-      setLoginError("Passwords do not match.");
+    setAuthError("");
+    const form = new FormData(event.currentTarget);
+    const nextUsername = String(form.get("username") || "");
+    const password = String(form.get("password") || "");
+    if (authMode === "signup" && password !== form.get("confirmPassword")) {
+      setAuthError("Passwords do not match.");
       return;
     }
     try {
-      const admin = await request(authMode === "setup" ? "/api/auth/setup" : "/api/auth/login", {
+      const user = await request(`/api/auth/${authMode}`, {
         method: "POST",
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username: nextUsername, password }),
       });
-      setAdminUsername(admin.username);
+      setUsername(user.username);
       setAuthStatus("authenticated");
-      setAuthMode("login");
-    } catch (authError) {
-      setLoginError(authError.message);
+    } catch (requestError) {
+      setAuthError(requestError.message);
     }
   }
 
   async function logout() {
     try {
       await request("/api/auth/logout", { method: "POST" });
-      setAuthStatus("unauthenticated");
       setLabours([]);
       setAttendance([]);
+      setAttendanceSummary([]);
       setSalaries([]);
-      setPage("overview");
+      setAuthStatus("unauthenticated");
+      setAuthMode("login");
     } catch (logoutError) {
       setError(logoutError.message);
     }
@@ -256,11 +245,16 @@ function App() {
 
   if (authStatus !== "authenticated") {
     return (
-      <AdminLogin
-        checking={authStatus === "checking"}
+      <AuthPage
         mode={authMode}
-        error={loginError}
-        onSubmit={submitLogin}
+        checking={authStatus === "checking"}
+        username={username}
+        error={authError}
+        onModeChange={(mode) => {
+          setAuthMode(mode);
+          setAuthError("");
+        }}
+        onSubmit={submitAuth}
       />
     );
   }
@@ -292,8 +286,8 @@ function App() {
             <p>Keep your team organized with Amit Yadav Labour Manager.</p>
           </div>
           <div className="profile">
-            <div className="avatar">{adminUsername.slice(0, 1).toUpperCase()}</div>
-            <div><strong>{adminUsername}</strong><small>Administrator</small></div>
+            <div className="avatar">{username.slice(0, 1).toUpperCase()}</div>
+            <div><strong>{username}</strong><small>Manager</small></div>
             <span className="profile-more">···</span>
           </div>
         </div>
@@ -306,7 +300,7 @@ function App() {
             <span className="today-label">{new Date().toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</span>
             <button className="icon-button" aria-label="Notifications">♧<i /></button>
             <button className="logout-button" onClick={logout}>Log out</button>
-            <div className="top-avatar">{adminUsername.slice(0, 1).toUpperCase()}</div>
+            <div className="top-avatar">{username.slice(0, 1).toUpperCase()}</div>
           </div>
         </header>
 
@@ -326,7 +320,7 @@ function App() {
               setPage={setPage}
               setAttendanceDate={setAttendanceDate}
               showNotice={showNotice}
-              adminUsername={adminUsername}
+              username={username}
             />
           )}
           {page === "labours" && (
@@ -336,8 +330,12 @@ function App() {
             <AttendancePage
               labours={activeLabours}
               markedAttendance={markedAttendance}
+              attendanceRevision={attendanceRevision}
+              summary={attendanceSummary}
               date={attendanceDate}
               setDate={setAttendanceDate}
+              month={attendanceMonth}
+              setMonth={setAttendanceMonth}
               onSave={saveAttendance}
               onGoToLabours={() => setPage("labours")}
             />
@@ -390,8 +388,8 @@ function App() {
   );
 }
 
-function AdminLogin({ checking, mode, error, onSubmit }) {
-  const isSetup = mode === "setup";
+function AuthPage({ mode, checking, username, error, onModeChange, onSubmit }) {
+  const isSignup = mode === "signup";
   return (
     <main className="login-screen">
       <section className="login-card">
@@ -399,32 +397,36 @@ function AdminLogin({ checking, mode, error, onSubmit }) {
           <span className="brand-mark" aria-hidden="true">AY</span>
           <div><strong>Amit Yadav</strong><small>LABOUR MANAGER</small></div>
         </div>
-        <p className="eyebrow">{isSetup ? "FIRST-TIME SETUP" : "ADMIN ACCESS"}</p>
-        <h1>{isSetup ? "Create admin account" : "Admin sign in"}</h1>
-        <p className="subheading">{isSetup ? "Create the first administrator account. Public signup closes after this account is created." : "Sign in to manage labour details, attendance and salaries. Labourers do not sign in or mark their own attendance."}</p>
+        <p className="eyebrow">{isSignup ? "NEW ACCOUNT" : "WELCOME BACK"}</p>
+        <h1>{isSignup ? "Create your account" : "Login"}</h1>
+        <p className="subheading">Log in or sign up to manage labour attendance and salary records.</p>
         {checking ? (
-          <div className="login-checking">Checking admin session…</div>
+          <div className="login-checking">Loading…</div>
         ) : (
           <form className="login-form" onSubmit={onSubmit}>
-            <label>Username<input name="username" autoComplete="username" minLength="3" maxLength="40" pattern="[A-Za-z0-9._-]+" title="Use letters, numbers, dot, underscore or hyphen." required /></label>
-            <label>Password<input name="password" type="password" autoComplete={isSetup ? "new-password" : "current-password"} minLength="12" maxLength="128" required /></label>
-            {isSetup && <label>Confirm password<input name="confirmPassword" type="password" autoComplete="new-password" minLength="12" maxLength="128" required /></label>}
+            {isSignup && <label>Name / username<input name="username" autoComplete="username" minLength="3" maxLength="30" required /></label>}
+            {!isSignup && <label>Name / username<input name="username" autoComplete="username" defaultValue={username} required /></label>}
+            <label>Password<input name="password" type="password" autoComplete={isSignup ? "new-password" : "current-password"} minLength={isSignup ? 8 : undefined} required /></label>
+            {isSignup && <label>Confirm password<input name="confirmPassword" type="password" autoComplete="new-password" minLength="8" required /></label>}
             {error && <p className="login-error" role="alert">{error}</p>}
-            <button className="button primary" type="submit">{isSetup ? "Create admin account" : "Sign in"}</button>
+            <button className="button primary" type="submit">{isSignup ? "Sign up" : "Login"}</button>
           </form>
         )}
-        <p className="login-footnote">{isSetup ? "Private admin access · Password must be at least 12 characters" : "Admin access only · Sessions expire after 8 hours"}</p>
+        {!checking && <button className="auth-switch" onClick={() => onModeChange(isSignup ? "login" : "signup")}>
+          {isSignup ? "Already have an account? Login" : "New here? Create an account"}
+        </button>}
+        <p className="login-footnote">Labour attendance is maintained by the manager.</p>
       </section>
     </main>
   );
 }
 
-function Overview({ activeLabours, attendanceCounts, attendanceDate, markedAttendance, salaries, salaryTotals, setPage, setAttendanceDate, showNotice, adminUsername }) {
+function Overview({ activeLabours, attendanceCounts, attendanceDate, markedAttendance, salaries, salaryTotals, setPage, setAttendanceDate, showNotice, username }) {
   const presentToday = attendanceCounts.present || 0;
   const attendanceRate = activeLabours.length ? Math.round((presentToday / activeLabours.length) * 100) : 0;
   return <>
     <div className="welcome-row">
-      <div><p className="eyebrow">{new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</p><h1>Good morning, {adminUsername} <span>✦</span></h1><p className="subheading">Here’s what’s happening with your workforce today.</p></div>
+      <div><p className="eyebrow">{new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</p><h1>Good morning, {username} <span>✦</span></h1><p className="subheading">Here’s what’s happening with your workforce today.</p></div>
       <button className="button primary" onClick={() => setPage("attendance")}><span>＋</span> Mark attendance</button>
     </div>
     <div className="stats-grid">
@@ -488,10 +490,24 @@ function LabourPage({ labours, onAdd, onToggleStatus, onDelete }) {
   </>;
 }
 
-function AttendancePage({ labours, markedAttendance, date, setDate, onSave, onGoToLabours }) {
+function AttendancePage({
+  labours,
+  markedAttendance,
+  summary,
+  date,
+  setDate,
+  month,
+  setMonth,
+  onSave,
+  onGoToLabours,
+  attendanceRevision,
+}) {
+  const savedRecordsKey = [...markedAttendance]
+    .map(([labourId, record]) => `${labourId}-${record.status}-${record.overtimeHours}`)
+    .join("|");
   return <>
     <div className="page-title-row"><div><p className="eyebrow">ADMIN-MANAGED WORK LOG</p><h1>Attendance</h1><p className="subheading">Admin records each labourer’s attendance and overtime. Labourers cannot mark it themselves.</p></div><label className="date-field">Attendance date<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label></div>
-    <form onSubmit={onSave} className="panel table-panel">
+    <form key={`${date}-${attendanceRevision}-${savedRecordsKey}`} onSubmit={onSave} className="panel table-panel">
       <div className="table-toolbar"><div><h2>Team attendance <span className="count-badge">{labours.length}</span></h2><p>Changes apply to {date}</p></div><button className="button primary" type="submit" disabled={!labours.length}>Save attendance</button></div>
       <div className="table-scroll"><table><thead><tr><th>LABOURER</th><th>ROLE</th><th>DAILY WAGE</th><th>STATUS</th><th>OVERTIME (HRS)</th></tr></thead><tbody>
         {labours.map((labour) => {
@@ -501,7 +517,27 @@ function AttendancePage({ labours, markedAttendance, date, setDate, onSave, onGo
         {!labours.length && <tr><td colSpan="5"><EmptyState text="Add active labourers before marking attendance." action="Go to labour directory" onClick={onGoToLabours} /></td></tr>}
       </tbody></table></div>
     </form>
-    <p className="info-note">Salary includes present days + half of half-days at the daily wage, plus overtime hours paid at daily wage ÷ 8 per hour.</p>
+    <section className="panel table-panel attendance-history">
+      <div className="table-toolbar">
+        <div><h2>Labour-wise attendance</h2><p>Monthly attendance summary and overtime recorded</p></div>
+        <label className="date-field">Summary month<input type="month" value={month} onChange={(event) => setMonth(event.target.value)} /></label>
+      </div>
+      <div className="table-scroll"><table><thead><tr><th>LABOURER</th><th>PRESENT</th><th>HALF DAY</th><th>ATTENDANCE DAYS</th><th>ABSENT</th><th>LEAVE</th><th>OVERTIME HRS</th></tr></thead><tbody>
+        {summary.map((labour) => (
+          <tr key={labour._id}>
+            <td><div className="person-cell"><div className="person-avatar">{labour.fullName.slice(0, 1).toUpperCase()}</div><div><strong>{labour.fullName}</strong><small>{labour.role}{labour.status === "inactive" ? " · Inactive" : ""}</small></div></div></td>
+            <td>{labour.presentDays}</td>
+            <td>{labour.halfDays}</td>
+            <td><strong>{labour.attendanceDays}</strong><small className="table-subtext"> · {labour.recordedDays} days recorded</small></td>
+            <td>{labour.absentDays}</td>
+            <td>{labour.leaveDays}</td>
+            <td>{labour.overtimeHours}</td>
+          </tr>
+        ))}
+        {!summary.length && <tr><td colSpan="7"><EmptyState text="Add labourers to see the attendance summary." action="Go to labour directory" onClick={onGoToLabours} /></td></tr>}
+      </tbody></table></div>
+    </section>
+    <p className="info-note">Attendance days are calculated as present days + half of half-days. Monthly totals include all labourers, including inactive workers with attendance history.</p>
   </>;
 }
 
