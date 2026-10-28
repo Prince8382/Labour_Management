@@ -1,8 +1,19 @@
-import { randomBytes } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
-const sessions = new Map();
 const cookieName = "workforce_session";
 const sessionDurationMs = 7 * 24 * 60 * 60 * 1000;
+
+function getSessionSecret() {
+  if (process.env.SESSION_SECRET) return process.env.SESSION_SECRET;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("SESSION_SECRET must be configured for production deployments.");
+  }
+  return "local-development-only-session-secret";
+}
+
+function sign(payload) {
+  return createHmac("sha256", getSessionSecret()).update(payload).digest("base64url");
+}
 
 function readSessionToken(req) {
   const cookie = req.headers.cookie
@@ -13,13 +24,35 @@ function readSessionToken(req) {
 }
 
 export function createSession(userId) {
-  const now = Date.now();
-  for (const [token, session] of sessions) {
-    if (session.expiresAt <= now) sessions.delete(token);
+  const payload = Buffer.from(
+    JSON.stringify({
+      userId: String(userId),
+      expiresAt: Date.now() + sessionDurationMs,
+      nonce: randomBytes(16).toString("hex"),
+    }),
+  ).toString("base64url");
+  return `${payload}.${sign(payload)}`;
+}
+
+function readSession(token) {
+  const [payload, signature, extra] = token.split(".");
+  if (!payload || !signature || extra) return null;
+  const expected = Buffer.from(sign(payload));
+  const received = Buffer.from(signature);
+  if (expected.length !== received.length || !timingSafeEqual(expected, received)) return null;
+  try {
+    const session = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    if (
+      typeof session.userId !== "string" ||
+      typeof session.expiresAt !== "number" ||
+      session.expiresAt <= Date.now()
+    ) {
+      return null;
+    }
+    return session;
+  } catch {
+    return null;
   }
-  const token = randomBytes(32).toString("hex");
-  sessions.set(token, { userId: String(userId), expiresAt: now + sessionDurationMs });
-  return token;
 }
 
 export function setSessionCookie(res, token) {
@@ -39,9 +72,8 @@ export function clearSessionCookie(res) {
 
 export function requireSession(req, res, next) {
   const token = readSessionToken(req);
-  const session = sessions.get(token);
-  if (!session || session.expiresAt <= Date.now()) {
-    if (token) sessions.delete(token);
+  const session = readSession(token);
+  if (!session) {
     return res.status(401).json({ message: "Please log in to continue." });
   }
   req.userId = session.userId;

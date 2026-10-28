@@ -1,63 +1,12 @@
 import "dotenv/config";
-import express from "express";
 import mongoose from "mongoose";
-import authRoutes from "./routes/auth.js";
-import attendanceRoutes from "./routes/attendance.js";
-import labourRoutes from "./routes/labours.js";
-import salaryRoutes from "./routes/salaries.js";
-import { requireSession } from "./middleware/sessionAuth.js";
+import app from "./app.js";
+import { connectDatabase } from "./database.js";
 
-const app = express();
 const port = process.env.PORT || 5000;
-const mongoUri = process.env.MONGODB_URI;
 let retryTimer;
 let retryDelay = 5000;
 let connecting = false;
-
-app.use(express.json({ limit: "1mb" }));
-
-app.get("/api/health", (_req, res) => {
-  const databaseConnected = mongoose.connection.readyState === 1;
-  res.status(databaseConnected ? 200 : 503).json({
-    status: databaseConnected ? "ok" : "degraded",
-    database: databaseConnected ? "connected" : "unavailable",
-  });
-});
-app.use("/api/auth", authRoutes);
-app.use("/api/labours", requireSession, labourRoutes);
-app.use("/api/attendance", requireSession, attendanceRoutes);
-app.use("/api/salaries", requireSession, salaryRoutes);
-
-app.use("/api", (req, res) => {
-  res.status(404).json({ message: `API route not found: ${req.method} ${req.originalUrl}` });
-});
-
-app.use((error, _req, res, _next) => {
-  if (
-    error.name === "MongooseServerSelectionError" ||
-    error.name === "MongoNetworkError" ||
-    error.name === "MongoNotConnectedError" ||
-    error.message?.includes("buffering timed out")
-  ) {
-    return res.status(503).json({
-      message: "Database unavailable. Check your MongoDB Atlas IP access list and connection settings.",
-    });
-  }
-  if (error.name === "ValidationError" || error.name === "CastError") {
-    return res.status(400).json({ message: error.message });
-  }
-  if (error.code === 11000) {
-    return res.status(409).json({ message: "Attendance for this labour and date already exists." });
-  }
-  console.error(error);
-  res.status(500).json({ message: "An unexpected server error occurred." });
-});
-
-if (!process.env.MONGODB_URI) {
-  throw new Error("MONGODB_URI is required. Copy .env.example to .env and configure MongoDB.");
-}
-
-mongoose.set("bufferTimeoutMS", 5000);
 
 function scheduleMongoRetry() {
   if (retryTimer || connecting) return;
@@ -74,7 +23,7 @@ async function connectToMongo() {
   if (connecting || mongoose.connection.readyState === 1) return;
   connecting = true;
   try {
-    await mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 8000 });
+    await connectDatabase();
     retryDelay = 5000;
     console.log("MongoDB connected.");
   } catch (error) {

@@ -18,8 +18,15 @@ Amit Yadav Labour Manager is a MERN app for managing a labour workforce, daily a
 
 1. Install Node.js 18 or later and run `npm install`.
 2. Ensure MongoDB is running locally, or create a MongoDB Atlas database.
-3. Copy `.env.example` to `.env` and set `MONGODB_URI` to your MongoDB connection string. If you already created `.env`, leave its MongoDB URI unchanged.
+3. Copy `.env.example` to `.env` and set `MONGODB_URI` to your MongoDB connection string. For deployment, also configure a long random `SESSION_SECRET`. If you already created `.env`, leave its MongoDB URI unchanged.
 4. Run `npm run dev`. Open `http://localhost:5173`, create an account or log in, then manage attendance and payroll from the dashboard.
 5. To create a production frontend bundle, run `npm run build`.
 
-The API requires a valid `MONGODB_URI`; the server stays available and retries the database connection if MongoDB is temporarily unreachable. While offline, `/api/health` reports a degraded status and API requests return a database-unavailable message. For Atlas, add your computer's current public IP under **Security → Network Access → IP Access List** in Atlas, then restart the app. Login sessions are kept in memory and will end when the server restarts.
+## Deploy to Vercel
+
+1. Import the GitHub repository into Vercel and keep the project root as the repository root.
+2. Set `MONGODB_URI` and `SESSION_SECRET` in **Project Settings → Environment Variables** for the environments you deploy. Use the MongoDB Atlas **Drivers** connection string and allow Vercel's outbound database access in Atlas Network Access.
+3. Vercel builds the Vite frontend from `npm run build`; API requests are served by the function in `api/[...path].js`.
+4. Redeploy after changing environment variables. The deployment log's `install-scripts` message is an npm warning; check the later build output for the actual result.
+
+The API requires a valid `MONGODB_URI`; locally the server stays available and retries the database connection if MongoDB is temporarily unreachable. While offline, `/api/health` reports a degraded status and API requests return a database-unavailable message. Login sessions are signed, stateless cookies so they work across serverless function instances.
