@@ -27,7 +27,7 @@ async function request(path, options) {
     });
   } catch {
     throw new Error(
-      `API se connection nahi ho pa raha (${API_URL || window.location.origin}${path}). API server, CORS settings, aur deployment URL check karein.`,
+      `API se connection nahi ho pa raha (${API_URL || window.location.origin}${path}). Render par CLIENT_ORIGINS mein ${window.location.origin} allowed hona chahiye; API URL aur server status bhi check karein.`,
     );
   }
   const data = await response.json().catch(() => ({}));

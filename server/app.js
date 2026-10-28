@@ -17,9 +17,18 @@ const allowedOrigins = new Set([
     .filter(Boolean),
 ]);
 
+function isAllowedOrigin(origin) {
+  return (
+    allowedOrigins.has(origin) ||
+    /^https:\/\/labour-management-[a-z0-9-]+-prince-chaudharys-projects-9fb8231a\.vercel\.app$/.test(
+      origin,
+    )
+  );
+}
+
 const corsOptions = {
   origin(origin, callback) {
-    if (!origin || allowedOrigins.has(origin)) {
+    if (!origin || isAllowedOrigin(origin)) {
       return callback(null, true);
     }
     const error = new Error("This website origin is not allowed. Add it to Render's CLIENT_ORIGINS and redeploy.");
@@ -39,7 +48,7 @@ app.get("/api/health", (_req, res) => {
     process.env.NODE_ENV !== "production" || Boolean(process.env.SESSION_SECRET);
   const corsConfigured =
     process.env.NODE_ENV !== "production" ||
-    allowedOrigins.has("https://labour-management-lemon.vercel.app");
+    isAllowedOrigin("https://labour-management-lemon.vercel.app");
   const ready = databaseConnected && sessionConfigured && corsConfigured;
   res.status(ready ? 200 : 503).json({
     status: ready ? "ok" : "degraded",

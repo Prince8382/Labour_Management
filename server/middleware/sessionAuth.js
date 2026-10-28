@@ -6,7 +6,10 @@ const sessionDurationMs = 7 * 24 * 60 * 60 * 1000;
 function getSessionSecret() {
   if (process.env.SESSION_SECRET) return process.env.SESSION_SECRET;
   if (process.env.NODE_ENV === "production") {
-    throw new Error("SESSION_SECRET must be configured for production deployments.");
+    const error = new Error("SESSION_SECRET is missing. Set it in the Render environment and redeploy.");
+    error.status = 503;
+    error.code = "SESSION_SECRET_MISSING";
+    throw error;
   }
   return "local-development-only-session-secret";
 }
