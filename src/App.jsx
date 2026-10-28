@@ -14,9 +14,13 @@ const money = (amount) =>
     maximumFractionDigits: 0,
   }).format(amount || 0);
 
+
+const API_URL = import.meta.env.VITE_API_URL || "";
+
 async function request(path, options) {
-  const response = await fetch(path, {
+  const response = await fetch(`${API_URL}${path}`, {
     ...options,
+    credentials: "include",
     headers: { "Content-Type": "application/json", ...options?.headers },
   });
   const data = await response.json().catch(() => ({}));
@@ -27,6 +31,7 @@ async function request(path, options) {
   }
   return data;
 }
+
 
 const navItems = [
   { id: "overview", label: "Overview", icon: "⌂" },
