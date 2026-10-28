@@ -24,10 +24,13 @@ app.get("/api/health", (_req, res) => {
   });
 });
 app.use("/api/auth", authRoutes);
-app.use("/api", requireSession);
-app.use("/api/labours", labourRoutes);
-app.use("/api/attendance", attendanceRoutes);
-app.use("/api/salaries", salaryRoutes);
+app.use("/api/labours", requireSession, labourRoutes);
+app.use("/api/attendance", requireSession, attendanceRoutes);
+app.use("/api/salaries", requireSession, salaryRoutes);
+
+app.use("/api", (req, res) => {
+  res.status(404).json({ message: `API route not found: ${req.method} ${req.originalUrl}` });
+});
 
 app.use((error, _req, res, _next) => {
   if (

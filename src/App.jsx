@@ -25,7 +25,7 @@ async function request(path, options) {
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const error = new Error(data.message || `Request failed (${response.status})`);
+    const error = new Error(data.message || `${options?.method || "GET"} ${path} failed (${response.status})`);
     error.status = response.status;
     throw error;
   }
